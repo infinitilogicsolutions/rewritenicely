@@ -1,327 +1,271 @@
-/**
- * RewriteNicely — Minimalist In-Browser AI Text Rewriter
- * - Native AI: Used if available (Background: GREEN)
- * - Local GGUF: SmolLM2-135M (~100MB) loaded locally only if native AI is absent
- * - Dynamic Background: GREEN when AI is ready, MAGENTA when unavailable
- */
-
-// Application State
-const state = {
-  hasNativeAI: false,
-  localModelEnabled: false,
-  localModelLoaded: false,
-  localModelLoading: false,
-  wllamaInstance: null
+const MAX_INPUT = 12_000;
+const CDN_BASE = 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm';
+const READY_STATES = new Set(['available', 'readily']);
+const MODELS = {
+  llama: {
+    name: 'Llama 3.2 1B Instruct', size: '808 MB', toggleId: 'chkLlamaModel', badgeId: 'llamaBadge',
+    localUrl: '/models/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+    remoteUrl: 'https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+  },
+  gemma: {
+    name: 'Gemma 3 1B IT', size: '806 MB', toggleId: 'chkGemmaModel', badgeId: 'gemmaBadge',
+    localUrl: '/models/gemma-3-1b-it-Q4_K_M.gguf',
+    remoteUrl: 'https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf',
+  },
+  qwen: {
+    name: 'Qwen3 0.6B', size: '429 MB', toggleId: 'chkQwenModel', badgeId: 'qwenBadge',
+    localUrl: '/models/Qwen3-0.6B-Q4_0.gguf',
+    remoteUrl: 'https://huggingface.co/ggml-org/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_0.gguf',
+  },
+  smol: {
+    name: 'SmolLM2 135M', size: '101 MB', toggleId: 'chkLocalModel', badgeId: 'smolBadge',
+    localUrl: '/models/smollm2-135m-instruct-q4_k_m.gguf', remoteUrl: null,
+  },
 };
 
-// DOM Elements
-const elements = {
+const state = { nativeAI: null, activeModel: null, loading: false, wllama: null };
+const el = {
   body: document.body,
-  statusIndicator: document.getElementById('statusIndicator'),
-  statusText: document.getElementById('statusText'),
-  localModelSection: document.getElementById('localModelSection'),
-  chkLocalModel: document.getElementById('chkLocalModel'),
-  modelBadge: document.getElementById('modelBadge'),
-  progressWrap: document.getElementById('progressWrap'),
-  progressBarFill: document.getElementById('progressBarFill'),
+  status: document.getElementById('statusText'),
+  help: document.getElementById('engineHelp'),
+  progress: document.getElementById('progressWrap'),
+  progressBar: document.getElementById('progressBarFill'),
   progressInfo: document.getElementById('progressInfo'),
-  inputText: document.getElementById('inputText'),
-  btnRewrite: document.getElementById('btnRewrite'),
-  btnSample: document.getElementById('btnSample'),
-  btnCopy: document.getElementById('btnCopy'),
-  copyBtnText: document.getElementById('copyBtnText'),
-  outputBox: document.getElementById('outputBox'),
-  toast: document.getElementById('toast')
+  input: document.getElementById('inputText'),
+  rewrite: document.getElementById('btnRewrite'),
+  sample: document.getElementById('btnSample'),
+  copy: document.getElementById('btnCopy'),
+  copyText: document.getElementById('copyBtnText'),
+  output: document.getElementById('outputBox'),
+  toast: document.getElementById('toast'),
 };
+const controls = Object.fromEntries(Object.entries(MODELS).map(([key, model]) => [key, {
+  toggle: document.getElementById(model.toggleId),
+  badge: document.getElementById(model.badgeId),
+}]));
 
-/**
- * Toast Notification Utility
- */
-function showToast(message) {
-  elements.toast.textContent = message;
-  elements.toast.classList.add('show');
-  setTimeout(() => {
-    elements.toast.classList.remove('show');
-  }, 2800);
+let toastTimer;
+function toast(message) {
+  clearTimeout(toastTimer);
+  el.toast.textContent = message;
+  el.toast.classList.add('show');
+  toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2800);
 }
 
-/**
- * Check if the browser supports Native Built-in AI APIs
- */
-async function probeNativeAI() {
-  const aiObj = window.ai || self.ai;
-  if (!aiObj) return false;
-
-  try {
-    // 1. Check Rewriter API
-    if (aiObj.rewriter) {
-      if (typeof aiObj.rewriter.availability === 'function') {
-        const avail = await aiObj.rewriter.availability();
-        if (avail === 'readily' || avail === 'available') return true;
-      } else if (typeof aiObj.rewriter.capabilities === 'function') {
-        const caps = await aiObj.rewriter.capabilities();
-        if (caps.available === 'readily') return true;
-      }
-    }
-
-    // 2. Check LanguageModel (Prompt API)
-    if (aiObj.languageModel) {
-      if (typeof aiObj.languageModel.availability === 'function') {
-        const avail = await aiObj.languageModel.availability();
-        if (avail === 'readily' || avail === 'available') return true;
-      } else if (typeof aiObj.languageModel.capabilities === 'function') {
-        const caps = await aiObj.languageModel.capabilities();
-        if (caps.available === 'readily') return true;
-      }
-    }
-
-    // 3. Legacy session check
-    if (typeof aiObj.canCreateTextSession === 'function') {
-      const can = await aiObj.canCreateTextSession();
-      if (can === 'readily') return true;
-    }
-  } catch (err) {
-    console.warn('Native AI check encountered an error:', err);
-  }
-
-  return false;
+function setOutput(text, copyable = false) {
+  el.output.textContent = text;
+  el.output.classList.toggle('placeholder-text', !copyable);
+  el.copy.disabled = !copyable;
 }
 
-/**
- * Update Background Theme & Status
- */
-function updateThemeState() {
-  const isAvailable = state.hasNativeAI || (state.localModelEnabled && state.localModelLoaded);
+function setProgress(value, message) {
+  const percent = Math.max(0, Math.min(100, Math.round(value)));
+  el.progressBar.style.width = `${percent}%`;
+  el.progress.setAttribute('aria-valuenow', String(percent));
+  el.progressInfo.textContent = message;
+}
 
-  elements.body.classList.remove('state-probing');
-  if (isAvailable) {
-    elements.body.classList.add('state-available');
-    elements.body.classList.remove('state-unavailable');
+function setControlsDisabled(disabled) {
+  for (const { toggle } of Object.values(controls)) toggle.disabled = disabled;
+}
 
-    if (state.hasNativeAI) {
-      elements.statusText.textContent = 'Chrome Native AI Active';
-      elements.localModelSection.style.display = 'none'; // Hide local model toggle when native is present
-    } else {
-      elements.statusText.textContent = 'Local AI Ready (SmolLM2 GGUF)';
-    }
+function refreshState() {
+  const usable = Boolean(state.nativeAI || state.activeModel);
+  el.body.classList.remove('state-probing', 'state-available', 'state-unavailable');
+  el.body.classList.add(usable ? 'state-available' : 'state-unavailable');
+  el.rewrite.disabled = !usable || state.loading;
+  if (state.loading) return;
+  if (state.activeModel) {
+    el.status.textContent = `${MODELS[state.activeModel].name} ready`;
+    el.help.textContent = 'The selected model runs locally in this browser tab.';
+  } else if (state.nativeAI) {
+    el.status.textContent = 'Chrome on-device AI ready';
+    el.help.textContent = 'Chrome AI will be used unless you select a local model.';
   } else {
-    elements.body.classList.add('state-unavailable');
-    elements.body.classList.remove('state-available');
-
-    elements.statusText.textContent = 'Native AI Unavailable';
-    elements.localModelSection.style.display = 'block'; // Show local model toggle when native is missing
+    el.status.textContent = 'Select an on-device model';
+    el.help.textContent = 'Choose a model to enable rewriting.';
   }
 }
 
-/**
- * Load the local SmolLM2 GGUF model via Wllama (llama.cpp WebAssembly)
- */
-async function loadLocalGGUFModel() {
-  if (state.localModelLoaded && state.wllamaInstance) {
-    state.localModelEnabled = true;
-    updateThemeState();
-    return;
+async function probeNativeAI() {
+  for (const candidate of [
+    { name: 'rewriter', api: self.Rewriter, options: { tone: 'more-formal', length: 'as-is', format: 'plain-text' } },
+    { name: 'languageModel', api: self.LanguageModel, options: {} },
+  ]) {
+    if (!candidate.api?.availability || !candidate.api?.create) continue;
+    try {
+      const availability = await candidate.api.availability(candidate.options);
+      if (READY_STATES.has(availability)) return { ...candidate, availability };
+    } catch (error) { console.warn(`${candidate.name} probe failed`, error); }
   }
 
+  const legacy = self.ai;
+  if (!legacy) return null;
+  for (const [name, api] of [['rewriter', legacy.rewriter], ['languageModel', legacy.languageModel]]) {
+    if (!api?.create) continue;
+    try {
+      const check = api.availability || api.capabilities;
+      const result = check ? await check.call(api) : null;
+      const availability = typeof result === 'string' ? result : result?.available;
+      if (READY_STATES.has(availability)) return { name, api, options: {}, availability, legacy: true };
+    } catch (error) { console.warn(`Legacy ${name} probe failed`, error); }
+  }
+  return null;
+}
+
+async function localModelExists(url) {
   try {
-    state.localModelLoading = true;
-    elements.progressWrap.style.display = 'flex';
-    elements.progressBarFill.style.width = '10%';
-    elements.progressInfo.textContent = 'Initializing WebAssembly engine...';
-    elements.modelBadge.textContent = 'Loading...';
+    const response = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    return response.ok;
+  } catch { return false; }
+}
 
-    // Import Wllama
-    const { Wllama } = await import('https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/index.js');
+async function loadModel(key) {
+  if (state.loading || (state.activeModel === key && state.wllama)) return;
+  const model = MODELS[key];
+  for (const [otherKey, { toggle }] of Object.entries(controls)) {
+    if (otherKey !== key) toggle.checked = false;
+  }
+  state.loading = true;
+  setControlsDisabled(true);
+  el.progress.hidden = false;
+  el.status.textContent = `Loading ${model.name}…`;
+  setProgress(2, 'Starting the WebAssembly engine…');
+  refreshState();
 
-    const configPaths = {
-      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/single-thread/wllama.wasm',
-      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/multi-thread/wllama.wasm'
-    };
-
-    state.wllamaInstance = new Wllama(configPaths);
-
-    elements.progressInfo.textContent = 'Loading local smollm2-135m-instruct-q4_k_m.gguf (100MB)...';
-    elements.progressBarFill.style.width = '30%';
-
-    // Load from local static server endpoint
-    await state.wllamaInstance.loadModelFromUrl('/models/smollm2-135m-instruct-q4_k_m.gguf', {
-      progressCallback: ({ loaded, total }) => {
-        if (total > 0) {
-          const pct = Math.round((loaded / total) * 100);
-          elements.progressBarFill.style.width = `${Math.max(30, pct)}%`;
-          elements.progressInfo.textContent = `Streaming local model weights: ${pct}% (${(loaded / 1024 / 1024).toFixed(1)}MB / ${(total / 1024 / 1024).toFixed(1)}MB)`;
-        }
-      }
+  try {
+    if (state.wllama?.exit) await state.wllama.exit();
+    const { Wllama } = await import(`${CDN_BASE}/index.js`);
+    state.wllama = new Wllama({
+      'single-thread/wllama.wasm': `${CDN_BASE}/single-thread/wllama.wasm`,
+      'multi-thread/wllama.wasm': `${CDN_BASE}/multi-thread/wllama.wasm`,
     });
 
-    state.localModelLoaded = true;
-    state.localModelLoading = false;
-    state.localModelEnabled = true;
+    const localUrl = new URL(model.localUrl, window.location.href).href;
+    const hasLocalCopy = await localModelExists(localUrl);
+    if (!hasLocalCopy && !model.remoteUrl) throw new Error(`The bundled ${model.name} file is missing.`);
+    const url = hasLocalCopy ? localUrl : model.remoteUrl;
+    const source = hasLocalCopy ? 'local model' : `${model.name} download`;
+    setProgress(5, hasLocalCopy ? `Loading ${model.name} from disk…` : `Downloading ${model.name} (${model.size})…`);
 
-    elements.progressBarFill.style.width = '100%';
-    elements.progressInfo.textContent = 'Model loaded in memory! Ready for zero-server rewrites.';
-    elements.modelBadge.textContent = 'Active (100MB)';
-    elements.modelBadge.style.color = '#00e676';
-
-    updateThemeState();
-    showToast('Local GGUF model loaded! Background switched to Green.');
-  } catch (err) {
-    console.error('Failed to load local GGUF model:', err);
-    state.localModelLoading = false;
-    elements.progressInfo.textContent = `Load note: ${err.message}`;
-    elements.modelBadge.textContent = 'Error';
-    showToast(`Error loading model: ${err.message}`);
-  }
-}
-
-/**
- * Execute Text Rewriting
- */
-async function handleRewrite() {
-  const text = elements.inputText.value.trim();
-  if (!text) {
-    elements.inputText.focus();
-    showToast('Please enter text to rewrite');
-    return;
-  }
-
-  elements.btnRewrite.disabled = true;
-  elements.outputBox.textContent = 'Thinking and polishing your text...';
-
-  try {
-    // 1. Native AI Path
-    if (state.hasNativeAI) {
-      const aiObj = window.ai || self.ai;
-      if (aiObj.rewriter) {
-        const rewriter = await aiObj.rewriter.create({ tone: 'more-formal', length: 'as-is' });
-        const result = await rewriter.rewrite(text);
-        elements.outputBox.textContent = result;
-        showToast('Polished using Chrome Native Rewriter AI');
-        return;
-      } else if (aiObj.languageModel) {
-        const session = await aiObj.languageModel.create();
-        const result = await session.prompt(`Rewrite politely and professionally: ${text}`);
-        elements.outputBox.textContent = result;
-        showToast('Polished using Chrome Native Language Model');
-        return;
-      }
-    }
-
-    // 2. Local SmolLM2 GGUF Path
-    if (state.localModelEnabled && state.localModelLoaded && state.wllamaInstance) {
-      const prompt = `<|im_start|>system\nYou are an expert writing assistant. Rewrite the following text to be professional, polite, concise, and constructive. Return only the rewritten text without explanations.<|im_end|>\n<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n`;
-
-      elements.outputBox.textContent = '';
-      const response = await state.wllamaInstance.createCompletion(prompt, {
-        nPredict: 120,
-        sampling: {
-          temp: 0.3,
-          top_p: 0.9
-        },
-        onNewToken: (token, piece, currentText) => {
-          elements.outputBox.textContent = currentText.trimStart();
-        }
-      });
-
-      elements.outputBox.textContent = response.trim();
-      showToast('Polished using Local SmolLM2-135M GGUF');
-      return;
-    }
-
-    // 3. Fallback when local model is not yet toggled on
-    elements.outputBox.textContent =
-      `Please enable the "Load Local AI Model (SmolLM2 GGUF)" toggle above to run the on-device AI.\n\nDemonstration rewrite:\n"I wanted to follow up regarding the budget report. Could you please share the current version when you have a moment? Thank you."`;
-    showToast('Enable the Local Model toggle above to run AI');
-  } catch (err) {
-    console.error('Rewrite error:', err);
-    elements.outputBox.textContent = `Error during rewriting: ${err.message}`;
+    await state.wllama.loadModelFromUrl(url, {
+      progressCallback: ({ loaded, total }) => {
+        if (!total) return;
+        const percent = Math.round((loaded / total) * 100);
+        setProgress(percent, `${source}: ${percent}% (${(loaded / 1024 / 1024).toFixed(0)} / ${(total / 1024 / 1024).toFixed(0)} MB)`);
+      },
+    });
+    state.activeModel = key;
+    setProgress(100, `${model.name} is ready.`);
+    controls[key].badge.textContent = 'Ready';
+    toast(`${model.name} is ready.`);
+  } catch (error) {
+    console.error('Model load failed', error);
+    state.activeModel = null;
+    state.wllama = null;
+    controls[key].toggle.checked = false;
+    controls[key].badge.textContent = 'Error';
+    setProgress(0, `Could not load the model: ${error.message}`);
+    toast('The selected model could not be loaded.');
   } finally {
-    elements.btnRewrite.disabled = false;
+    state.loading = false;
+    setControlsDisabled(false);
+    refreshState();
   }
 }
 
-/**
- * Copy Output Text
- */
-async function handleCopy() {
-  const content = elements.outputBox.textContent.trim();
-  if (!content || content.includes('Your polished, professional rewrite will appear here')) {
-    showToast('Nothing to copy yet');
-    return;
-  }
-
+async function rewriteNative(text) {
+  const strategy = state.nativeAI;
+  let session;
   try {
-    await navigator.clipboard.writeText(content);
-    elements.copyBtnText.textContent = 'Copied!';
-    elements.btnCopy.style.background = 'var(--theme-primary)';
-    elements.btnCopy.style.color = '#030712';
+    if (strategy.name === 'rewriter') {
+      session = await strategy.api.create(strategy.options);
+      return await session.rewrite(text);
+    }
+    const options = strategy.legacy ? {} : { initialPrompts: [{ role: 'system', content: 'Rewrite the user text to be professional, polite, concise, and constructive. Return only the rewrite.' }] };
+    session = await strategy.api.create(options);
+    return await session.prompt(text);
+  } finally { session?.destroy?.(); }
+}
 
-    showToast('Copied to clipboard!');
+function modelPrompt(key, text) {
+  const safe = text.replaceAll('<|', '<\u200b|');
+  const instruction = 'Rewrite the user text to be professional, polite, concise, and constructive. Return only the rewritten text.';
+  if (key === 'llama') {
+    return `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n${instruction}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n${safe}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n`;
+  }
+  if (key === 'gemma') {
+    return `<bos><start_of_turn>user\n${instruction}\n\n${safe}<end_of_turn>\n<start_of_turn>model\n`;
+  }
+  if (key === 'qwen') {
+    return `<|im_start|>system\n${instruction}<|im_end|>\n<|im_start|>user\n${safe}\n/no_think<|im_end|>\n<|im_start|>assistant\n`;
+  }
+  return `<|im_start|>system\n${instruction}<|im_end|>\n<|im_start|>user\n${safe}<|im_end|>\n<|im_start|>assistant\n`;
+}
 
-    setTimeout(() => {
-      elements.copyBtnText.textContent = 'Copy';
-      elements.btnCopy.style.background = '';
-      elements.btnCopy.style.color = '';
-    }, 2000);
-  } catch (e) {
-    showToast('Failed to copy to clipboard');
+async function rewriteLocal(text) {
+  const response = await state.wllama.createCompletion(modelPrompt(state.activeModel, text), {
+    nPredict: 256,
+    sampling: { temp: 0.3, top_p: 0.9 },
+    onNewToken: (_token, _piece, current) => setOutput(current.trimStart(), true),
+  });
+  return response.trim();
+}
+
+async function handleRewrite() {
+  const text = el.input.value.trim();
+  if (!text) { el.input.focus(); toast('Enter some text to rewrite.'); return; }
+  if (text.length > MAX_INPUT) { toast('Keep the draft under 12,000 characters.'); return; }
+  el.rewrite.disabled = true;
+  setOutput('Thinking and polishing your text…');
+  try {
+    const result = state.activeModel ? await rewriteLocal(text) : await rewriteNative(text);
+    if (!result) throw new Error('The model returned an empty response.');
+    setOutput(result, true);
+    toast('Your rewrite is ready.');
+  } catch (error) {
+    console.error('Rewrite failed', error);
+    if (!state.activeModel) state.nativeAI = null;
+    setOutput(`The rewrite could not be completed. ${error.message}`);
+    toast('The rewrite failed.');
+  } finally { refreshState(); }
+}
+
+function toggleModel(key, checked) {
+  if (checked) loadModel(key);
+  else if (state.activeModel === key) {
+    state.activeModel = null;
+    refreshState();
   }
 }
 
-/**
- * Sample Drafts
- */
-function handleSample() {
-  const samples = [
-    'send me the budget report right now or else',
-    'The project timeline makes no sense and whoever planned this was clueless. We cannot do it.',
-    'I dont know what you want me to do with this slide deck, it looks completely terrible.',
-    'Hey guys this API is broken and slow fix it please asap'
-  ];
-  elements.inputText.value = samples[Math.floor(Math.random() * samples.length)];
-  elements.inputText.focus();
-}
-
-/**
- * Event Listeners
- */
 function initEvents() {
-  // Local model toggle
-  elements.chkLocalModel.addEventListener('change', (e) => {
-    if (e.target.checked) {
-      loadLocalGGUFModel();
-    } else {
-      state.localModelEnabled = false;
-      updateThemeState();
-      showToast('Local model disabled. Background reverted to Magenta.');
-    }
+  for (const [key, { toggle }] of Object.entries(controls)) {
+    toggle.addEventListener('change', (event) => toggleModel(key, event.target.checked));
+  }
+  el.rewrite.addEventListener('click', handleRewrite);
+  el.sample.addEventListener('click', () => { el.input.value = 'Send me the budget report right now or else.'; el.input.focus(); });
+  el.copy.addEventListener('click', async () => {
+    if (el.copy.disabled) return;
+    try {
+      await navigator.clipboard.writeText(el.output.textContent.trim());
+      el.copyText.textContent = 'Copied!';
+      setTimeout(() => { el.copyText.textContent = 'Copy'; }, 1800);
+    } catch { toast('Clipboard access was unavailable.'); }
   });
-
-  // Buttons
-  elements.btnRewrite.addEventListener('click', handleRewrite);
-  elements.btnCopy.addEventListener('click', handleCopy);
-  elements.btnSample.addEventListener('click', handleSample);
-
-  // Command/Ctrl + Enter to trigger rewrite
-  elements.inputText.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
+  el.input.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !el.rewrite.disabled) {
+      event.preventDefault();
       handleRewrite();
     }
   });
 }
 
-/**
- * Initialization
- */
 async function init() {
   initEvents();
-  state.hasNativeAI = await probeNativeAI();
-  updateThemeState();
+  state.nativeAI = await probeNativeAI();
+  refreshState();
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+else init();

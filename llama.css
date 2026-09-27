@@ -1,0 +1,11 @@
+[hidden] { display: none !important; }
+.model-section { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; border: 1px solid var(--card-border); border-radius: 14px; background: rgba(0,0,0,.25); }
+.model-option { display: flex; flex-direction: column; gap: 6px; }
+.engine-help, .model-note { color: var(--theme-text-muted); font-size: .78rem; }
+.license-link { width: fit-content; color: var(--theme-primary); font-size: .75rem; }
+.model-divider { display: flex; align-items: center; gap: 10px; color: var(--theme-text-muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; }
+.model-divider::before, .model-divider::after { content: ''; height: 1px; flex: 1; background: var(--card-border); }
+.btn-primary:focus-visible, .btn-secondary:focus-visible, .btn-copy:focus-visible, .license-link:focus-visible, .switch-control input:focus-visible + .switch-track { outline: 3px solid #fff; outline-offset: 3px; }
+.btn-copy:disabled { cursor: not-allowed; opacity: .45; }
+@media (max-width: 520px) { body { padding: 16px 10px; align-items: flex-start; } .workspace-card { padding: 20px 16px; } .toggle-row { align-items: flex-start; flex-direction: column; } .input-actions button { flex: 1; justify-content: center; } }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }

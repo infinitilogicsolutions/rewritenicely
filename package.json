@@ -1,0 +1,20 @@
+{
+  "name": "rewritenicely",
+  "version": "1.0.0",
+  "description": "Browser Built-in AI API Detector with dynamic green/magenta background response",
+  "main": "server.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs"
+  },
+  "keywords": [
+    "browser-ai",
+    "window.ai",
+    "gemini-nano",
+    "prompt-api",
+    "rewriter-api"
+  ],
+  "author": "InfinitiLogic",
+  "license": "MIT"
+}

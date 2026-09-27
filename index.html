@@ -3,50 +3,123 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RewriteNicely</title>
-  <meta name="description" content="Private on-device rewriting with Chrome AI or compact local language models.">
+  <title>Rewrite Nicely | Infiniti Logic</title>
+  <meta name="description" content="Private, thoughtful rewriting powered by on-device AI.">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="llama.css">
 </head>
 <body class="state-probing">
-  <div class="ambient-glow" aria-hidden="true"></div>
-  <div class="app-container">
-    <header class="app-header">
-      <div class="brand">
-        <div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>
-        <div class="brand-info"><h1 class="brand-title">RewriteNicely</h1><span class="status-indicator" role="status" aria-live="polite"><span class="status-dot"></span><span id="statusText">Checking AI engines…</span></span></div>
-      </div>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Rewrite Nicely home">
+        <span class="brand-mark" aria-hidden="true">&infin;</span>
+        <span>Rewrite Nicely <span class="brand-light">by Infiniti Logic</span></span>
+      </a>
+      <span class="edition">PRIVATE &middot; ON-DEVICE</span>
     </header>
-    <main class="workspace-card">
-      <section class="model-section" aria-labelledby="modelTitle">
-        <div><h2 class="section-label" id="modelTitle">On-device model</h2><p class="engine-help" id="engineHelp">Choose one model, or use Chrome AI when available.</p></div>
-        <div class="model-option">
-          <div class="toggle-row"><label class="switch-control" for="chkLlamaModel"><input type="checkbox" id="chkLlamaModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Download &amp; use Llama 3.2 1B</span></label><span class="model-badge" id="llamaBadge">808 MB</span></div>
-          <a class="license-link" href="https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct/blob/main/LICENSE.txt" target="_blank" rel="noopener noreferrer">Llama 3.2 license</a>
-        </div>
-        <div class="model-option">
-          <div class="toggle-row"><label class="switch-control" for="chkGemmaModel"><input type="checkbox" id="chkGemmaModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Download &amp; use Gemma 3 1B</span></label><span class="model-badge" id="gemmaBadge">806 MB</span></div>
-          <a class="license-link" href="https://ai.google.dev/gemma/terms" target="_blank" rel="noopener noreferrer">Gemma terms</a>
-        </div>
-        <div class="model-option">
-          <div class="toggle-row"><label class="switch-control" for="chkQwenModel"><input type="checkbox" id="chkQwenModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Download &amp; use Qwen3 0.6B</span></label><span class="model-badge" id="qwenBadge">429 MB</span></div>
-          <a class="license-link" href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache 2.0 license</a>
-        </div>
-        <div class="model-divider"><span>lightest option</span></div>
-        <div class="model-option"><div class="toggle-row"><label class="switch-control" for="chkLocalModel"><input type="checkbox" id="chkLocalModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Load SmolLM2 135M</span></label><span class="model-badge" id="smolBadge">101 MB</span></div></div>
-        <p class="model-note">Only one model is loaded at a time. Remote models are downloaded into browser memory; local GGUF copies are used automatically.</p>
-        <div class="progress-wrap" id="progressWrap" role="progressbar" aria-label="Model loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBarFill"></div></div><div class="progress-info" id="progressInfo">Preparing model…</div></div>
+
+    <main>
+      <section class="intro" aria-labelledby="pageTitle">
+        <p class="eyebrow"><span aria-hidden="true"></span> THOUGHTFUL WRITING, MADE SIMPLE</p>
+        <h1 id="pageTitle">Say it clearly. <em>Say it nicely.</em></h1>
+        <p class="subtitle">Turn a rough draft into polished, constructive language without sending your text to a server.</p>
       </section>
-      <section class="input-section">
-        <label for="inputText" class="section-label">Your Draft</label>
-        <textarea id="inputText" class="text-area" rows="4" maxlength="12000" aria-describedby="engineHelp" placeholder="Type or paste text you want to rewrite nicely…"></textarea>
-        <div class="input-actions"><button id="btnSample" class="btn-secondary" type="button">Insert Sample</button><button id="btnRewrite" class="btn-primary" type="button" disabled><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>Rewrite Nicely</button></div>
+
+      <section class="engine-panel" aria-labelledby="modelTitle">
+        <div class="engine-heading">
+          <div>
+            <p class="section-kicker">WRITING ENGINE</p>
+            <h2 id="modelTitle">Choose an on-device model</h2>
+          </div>
+          <span class="status-indicator" role="status" aria-live="polite"><span class="status-dot"></span><span id="statusText">Checking available engines...</span></span>
+        </div>
+
+        <div id="modelPicker" class="model-picker">
+          <p class="engine-help" id="engineHelp">Choose one model below, or use Chrome AI automatically when it is available.</p>
+          <div class="model-grid">
+            <article class="model-option">
+              <div class="model-topline"><span class="model-category">BALANCED</span><span class="model-badge" id="llamaBadge">808 MB</span></div>
+              <h3>Llama 3.2 1B</h3>
+              <p>Strong general-purpose rewriting with clear instruction following.</p>
+              <label class="switch-control" for="chkLlamaModel"><input type="checkbox" id="chkLlamaModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Download and use</span></label>
+              <a class="license-link" href="https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct/blob/main/LICENSE.txt" target="_blank" rel="noopener noreferrer">License <span aria-hidden="true">&nearr;</span></a>
+            </article>
+            <article class="model-option featured-model">
+              <div class="model-topline"><span class="model-category">MULTILINGUAL</span><span class="model-badge" id="gemmaBadge">806 MB</span></div>
+              <h3>Gemma 3 1B</h3>
+              <p>Multilingual rewriting with a selectable output language.</p>
+              <label class="switch-control" for="chkGemmaModel"><input type="checkbox" id="chkGemmaModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Download and use</span></label>
+              <a class="license-link" href="https://ai.google.dev/gemma/terms" target="_blank" rel="noopener noreferrer">Terms <span aria-hidden="true">&nearr;</span></a>
+            </article>
+            <article class="model-option">
+              <div class="model-topline"><span class="model-category">COMPACT</span><span class="model-badge" id="qwenBadge">429 MB</span></div>
+              <h3>Qwen3 0.6B</h3>
+              <p>A smaller download with capable everyday rewriting.</p>
+              <label class="switch-control" for="chkQwenModel"><input type="checkbox" id="chkQwenModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Download and use</span></label>
+              <a class="license-link" href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache 2.0 <span aria-hidden="true">&nearr;</span></a>
+            </article>
+            <article class="model-option">
+              <div class="model-topline"><span class="model-category">LIGHTEST</span><span class="model-badge" id="smolBadge">101 MB</span></div>
+              <h3>SmolLM2 135M</h3>
+              <p>Bundled locally for the fastest start and smallest footprint.</p>
+              <label class="switch-control" for="chkLocalModel"><input type="checkbox" id="chkLocalModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Load bundled model</span></label>
+            </article>
+          </div>
+          <p class="model-note">Only one model stays loaded at a time. Downloads remain in browser memory for this session.</p>
+        </div>
+
+        <div id="selectedModelSummary" class="selected-model-summary" hidden>
+          <span class="summary-icon" aria-hidden="true">AI</span>
+          <div class="summary-copy">
+            <span class="summary-label">ACTIVE MODEL</span>
+            <strong id="selectedModelName">Model name</strong>
+            <p id="selectedModelMeta">Model details</p>
+          </div>
+          <div class="summary-controls">
+            <div id="gemmaLanguageGroup" class="language-control" hidden>
+              <label for="gemmaLanguage">Output language</label>
+              <select id="gemmaLanguage">
+                <option value="same">Same as source</option>
+                <option value="English">English</option>
+                <option value="Spanish">Spanish</option>
+                <option value="French">French</option>
+                <option value="German">German</option>
+                <option value="Italian">Italian</option>
+                <option value="Portuguese">Portuguese</option>
+                <option value="Dutch">Dutch</option>
+                <option value="Polish">Polish</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Arabic">Arabic</option>
+                <option value="Chinese">Chinese</option>
+                <option value="Japanese">Japanese</option>
+                <option value="Korean">Korean</option>
+              </select>
+            </div>
+            <button id="btnChangeModel" class="text-button" type="button">Change model</button>
+          </div>
+        </div>
+
+        <div class="progress-wrap" id="progressWrap" role="progressbar" aria-label="Model loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+          <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBarFill"></div></div>
+          <div class="progress-info" id="progressInfo">Preparing model...</div>
+        </div>
       </section>
-      <section class="output-section" aria-labelledby="outputLabel">
-        <div class="output-header"><h2 class="section-label" id="outputLabel">Polished Output</h2><button id="btnCopy" class="btn-copy" type="button" disabled><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-icon"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span id="copyBtnText">Copy</span></button></div>
-        <div class="output-box placeholder-text" id="outputBox" role="status" aria-live="polite">Your polished, professional rewrite will appear here.</div>
-      </section>
+
+      <div class="editor-grid">
+        <section class="editor-panel input-section" aria-labelledby="draftLabel">
+          <div class="panel-heading"><div><span class="panel-number">01</span><h2 id="draftLabel">Your draft</h2></div><span>Up to 12,000 characters</span></div>
+          <label for="inputText" class="sr-only">Text to rewrite</label>
+          <textarea id="inputText" class="text-area" maxlength="12000" aria-describedby="engineHelp" placeholder="Type or paste the message you want to improve..."></textarea>
+          <div class="input-actions"><button id="btnSample" class="btn-secondary" type="button">Insert sample</button><button id="btnRewrite" class="btn-primary" type="button" disabled>Rewrite nicely <span aria-hidden="true">&rarr;</span></button></div>
+        </section>
+
+        <section class="editor-panel output-section" aria-labelledby="outputLabel">
+          <div class="panel-heading"><div><span class="panel-number">02</span><h2 id="outputLabel">Polished result</h2></div><button id="btnCopy" class="btn-copy" type="button" disabled><span id="copyBtnText">Copy</span></button></div>
+          <div class="output-box placeholder-text" id="outputBox" role="status" aria-live="polite">Your clear, professional rewrite will appear here.</div>
+        </section>
+      </div>
     </main>
+
+    <footer><span>INFINITI LOGIC <span class="footer-slash">/</span> Built for thoughtful communication.</span><span>Private by design.</span></footer>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="app.js" type="module"></script>

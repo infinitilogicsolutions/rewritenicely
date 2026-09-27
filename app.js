@@ -23,7 +23,8 @@ const MODELS = {
   smol: {
     name: 'SmolLM2 135M', size: '101 MB', toggleId: 'chkLocalModel', badgeId: 'smolBadge',
     summary: 'Lightweight bundled rewriting - runs privately in this browser tab',
-    localUrl: 'models/smollm2-135m-instruct-q4_k_m.gguf', remoteUrl: null,
+    localUrl: 'models/smollm2-135m-instruct-q4_k_m.gguf',
+    remoteUrl: 'https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf',
   },
 };
 
@@ -181,10 +182,10 @@ async function loadModel(key) {
 
     const localUrl = new URL(model.localUrl, window.location.href).href;
     const hasLocalCopy = await localModelExists(localUrl);
-    if (!hasLocalCopy && !model.remoteUrl) {
-      throw new Error(`The bundled ${model.name} file is unavailable. Run the included app server and try again.`);
-    }
     const url = hasLocalCopy ? localUrl : model.remoteUrl;
+    if (!url) {
+      throw new Error(`No download source available for ${model.name}.`);
+    }
     const source = hasLocalCopy ? 'Local model' : `${model.name} download`;
     setProgress(5, hasLocalCopy ? `Loading ${model.name} from disk...` : `Downloading ${model.name} (${model.size})...`);
 

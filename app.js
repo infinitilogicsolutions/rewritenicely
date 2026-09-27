@@ -19,7 +19,7 @@ const state = {
     loaded: false,
     pipeline: null,
     device: 'webgpu',
-    modelName: 'onnx-community/SmolLM2-135M-Instruct'
+    modelName: 'onnx-community/SmolLM2-135M-Instruct-ONNX'
   }
 };
 
@@ -436,12 +436,28 @@ async function activateLocalAIEngine() {
       }
     };
 
-    // Initialize text-generation pipeline
-    state.localAI.pipeline = await pipeline('text-generation', state.localAI.modelName, {
-      device: state.localAI.device,
-      dtype: 'q4',
-      progress_callback: progressCallback
-    });
+    // Initialize text-generation pipeline with WebGPU and automatic WASM fallback
+    try {
+      state.localAI.pipeline = await pipeline('text-generation', state.localAI.modelName, {
+        device: state.localAI.device,
+        dtype: 'q4',
+        progress_callback: progressCallback
+      });
+    } catch (gpuErr) {
+      if (state.localAI.device === 'webgpu') {
+        console.warn('WebGPU initialization failed, falling back to WASM...', gpuErr);
+        state.localAI.device = 'wasm';
+        elements.techDeviceBadge.textContent = 'WASM (CPU Fallback)';
+        elements.modelStatusText.textContent = 'WebGPU unavailable, switching to WASM...';
+        state.localAI.pipeline = await pipeline('text-generation', state.localAI.modelName, {
+          device: 'wasm',
+          dtype: 'q4',
+          progress_callback: progressCallback
+        });
+      } else {
+        throw gpuErr;
+      }
+    }
 
     state.localAI.loaded = true;
     state.localAI.loading = false;

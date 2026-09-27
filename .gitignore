@@ -13,3 +13,7 @@ desktop.ini
 # Environment variables
 .env
 .env.local
+
+# Large local model binaries
+models/*.gguf
+

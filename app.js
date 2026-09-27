@@ -1,59 +1,37 @@
 /**
- * RewriteNicely — Browser AI API Detector & Engine
- * Probes Chrome Gemini Nano / window.ai / W3C AI specifications
- * Supports In-Browser Local Model (SmolLM2-135M via WebGPU/WASM) with no flags required
- * Dynamically switches background color to Green (Available) or Magenta (Unavailable)
+ * RewriteNicely — Minimalist In-Browser AI Text Rewriter
+ * - Native AI: Used if available (Background: GREEN)
+ * - Local GGUF: SmolLM2-135M (~100MB) loaded locally only if native AI is absent
+ * - Dynamic Background: GREEN when AI is ready, MAGENTA when unavailable
  */
 
 // Application State
 const state = {
-  isSecureContext: window.isSecureContext,
-  simulationMode: 'auto', // 'auto' | 'green' | 'magenta'
-  displayMode: 'ambient',  // 'ambient' | 'solid'
-  detectedAvailable: false,
-  probeResults: {},
-  activeSession: null,
-  localAI: {
-    enabled: false,
-    loading: false,
-    loaded: false,
-    pipeline: null,
-    device: 'webgpu',
-    modelName: 'onnx-community/SmolLM2-135M-Instruct-ONNX'
-  }
+  hasNativeAI: false,
+  localModelEnabled: false,
+  localModelLoaded: false,
+  localModelLoading: false,
+  wllamaInstance: null
 };
 
-// DOM Element References
+// DOM Elements
 const elements = {
   body: document.body,
-  statusBadge: document.getElementById('statusBadge'),
-  heroHeading: document.getElementById('heroHeading'),
-  heroDescription: document.getElementById('heroDescription'),
-  colorStateValue: document.getElementById('colorStateValue'),
-  secureContextValue: document.getElementById('secureContextValue'),
-  detectionSourceValue: document.getElementById('detectionSourceValue'),
-  capabilityList: document.getElementById('capabilityList'),
-  diagnosticsOutput: document.getElementById('diagnosticsOutput'),
-  btnModeAmbient: document.getElementById('btnModeAmbient'),
-  btnModeSolid: document.getElementById('btnModeSolid'),
-  btnSimAuto: document.getElementById('btnSimAuto'),
-  btnSimGreen: document.getElementById('btnSimGreen'),
-  btnSimMagenta: document.getElementById('btnSimMagenta'),
-  btnRefreshProbe: document.getElementById('btnRefreshProbe'),
-  aiPromptForm: document.getElementById('aiPromptForm'),
-  promptInput: document.getElementById('promptInput'),
-  btnExecuteAI: document.getElementById('btnExecuteAI'),
-  btnUseSample: document.getElementById('btnUseSample'),
-  aiOutput: document.getElementById('aiOutput'),
-  workbenchTag: document.getElementById('workbenchTag'),
-  toast: document.getElementById('toast'),
-  // In-Browser AI elements
-  chkLocalAI: document.getElementById('chkLocalAI'),
-  modelStatusBanner: document.getElementById('modelStatusBanner'),
-  modelStatusText: document.getElementById('modelStatusText'),
-  modelProgressBar: document.getElementById('modelProgressBar'),
-  modelFileInfo: document.getElementById('modelFileInfo'),
-  techDeviceBadge: document.getElementById('techDeviceBadge')
+  statusIndicator: document.getElementById('statusIndicator'),
+  statusText: document.getElementById('statusText'),
+  localModelSection: document.getElementById('localModelSection'),
+  chkLocalModel: document.getElementById('chkLocalModel'),
+  modelBadge: document.getElementById('modelBadge'),
+  progressWrap: document.getElementById('progressWrap'),
+  progressBarFill: document.getElementById('progressBarFill'),
+  progressInfo: document.getElementById('progressInfo'),
+  inputText: document.getElementById('inputText'),
+  btnRewrite: document.getElementById('btnRewrite'),
+  btnSample: document.getElementById('btnSample'),
+  btnCopy: document.getElementById('btnCopy'),
+  copyBtnText: document.getElementById('copyBtnText'),
+  outputBox: document.getElementById('outputBox'),
+  toast: document.getElementById('toast')
 };
 
 /**
@@ -64,626 +42,286 @@ function showToast(message) {
   elements.toast.classList.add('show');
   setTimeout(() => {
     elements.toast.classList.remove('show');
-  }, 3200);
+  }, 2800);
 }
 
 /**
- * Normalizes capability availability string
+ * Check if the browser supports Native Built-in AI APIs
  */
-function normalizeStatus(val) {
-  if (val === 'readily' || val === 'available' || val === true) return 'ready';
-  if (val === 'after-download' || val === 'downloading') return 'download';
-  return 'none';
-}
-
-/**
- * Core AI API Probe Engine
- */
-async function probeBrowserAI() {
-  const results = {
-    timestamp: new Date().toISOString(),
-    isSecureContext: window.isSecureContext,
-    origin: window.location.origin,
-    userAgent: navigator.userAgent,
-    namespaces: {
-      hasWindowAI: typeof window.ai !== 'undefined',
-      hasSelfAI: typeof self.ai !== 'undefined',
-      hasTranslation: typeof window.translation !== 'undefined'
-    },
-    apis: {
-      languageModel: { supported: false, status: 'unsupported', details: null },
-      rewriter: { supported: false, status: 'unsupported', details: null },
-      writer: { supported: false, status: 'unsupported', details: null },
-      summarizer: { supported: false, status: 'unsupported', details: null },
-      languageDetector: { supported: false, status: 'unsupported', details: null },
-      translator: { supported: false, status: 'unsupported', details: null }
-    }
-  };
-
+async function probeNativeAI() {
   const aiObj = window.ai || self.ai;
+  if (!aiObj) return false;
 
-  // 1. LanguageModel / Prompt API
-  if (aiObj && aiObj.languageModel) {
-    results.apis.languageModel.supported = true;
-    try {
-      if (typeof aiObj.languageModel.availability === 'function') {
-        const avail = await aiObj.languageModel.availability();
-        results.apis.languageModel.status = avail;
-        results.apis.languageModel.details = `availability(): ${avail}`;
-      } else if (typeof aiObj.languageModel.capabilities === 'function') {
-        const caps = await aiObj.languageModel.capabilities();
-        results.apis.languageModel.status = caps.available;
-        results.apis.languageModel.details = `capabilities(): ${caps.available}`;
-      }
-    } catch (err) {
-      results.apis.languageModel.details = `Error: ${err.message}`;
-    }
-  } else if (aiObj && typeof aiObj.canCreateTextSession === 'function') {
-    results.apis.languageModel.supported = true;
-    try {
-      const can = await aiObj.canCreateTextSession();
-      results.apis.languageModel.status = can === 'readily' ? 'ready' : can;
-      results.apis.languageModel.details = `canCreateTextSession(): ${can}`;
-    } catch (e) {
-      results.apis.languageModel.details = e.message;
-    }
-  }
-
-  // 2. Rewriter API
-  if (aiObj && aiObj.rewriter) {
-    results.apis.rewriter.supported = true;
-    try {
+  try {
+    // 1. Check Rewriter API
+    if (aiObj.rewriter) {
       if (typeof aiObj.rewriter.availability === 'function') {
         const avail = await aiObj.rewriter.availability();
-        results.apis.rewriter.status = avail;
-        results.apis.rewriter.details = `availability(): ${avail}`;
+        if (avail === 'readily' || avail === 'available') return true;
       } else if (typeof aiObj.rewriter.capabilities === 'function') {
         const caps = await aiObj.rewriter.capabilities();
-        results.apis.rewriter.status = caps.available;
-        results.apis.rewriter.details = `capabilities(): ${caps.available}`;
+        if (caps.available === 'readily') return true;
       }
-    } catch (err) {
-      results.apis.rewriter.details = `Error: ${err.message}`;
     }
-  }
 
-  // 3. Writer API
-  if (aiObj && aiObj.writer) {
-    results.apis.writer.supported = true;
-    try {
-      if (typeof aiObj.writer.availability === 'function') {
-        const avail = await aiObj.writer.availability();
-        results.apis.writer.status = avail;
-        results.apis.writer.details = `availability(): ${avail}`;
-      } else if (typeof aiObj.writer.capabilities === 'function') {
-        const caps = await aiObj.writer.capabilities();
-        results.apis.writer.status = caps.available;
-        results.apis.writer.details = `capabilities(): ${caps.available}`;
+    // 2. Check LanguageModel (Prompt API)
+    if (aiObj.languageModel) {
+      if (typeof aiObj.languageModel.availability === 'function') {
+        const avail = await aiObj.languageModel.availability();
+        if (avail === 'readily' || avail === 'available') return true;
+      } else if (typeof aiObj.languageModel.capabilities === 'function') {
+        const caps = await aiObj.languageModel.capabilities();
+        if (caps.available === 'readily') return true;
       }
-    } catch (err) {
-      results.apis.writer.details = `Error: ${err.message}`;
     }
+
+    // 3. Legacy session check
+    if (typeof aiObj.canCreateTextSession === 'function') {
+      const can = await aiObj.canCreateTextSession();
+      if (can === 'readily') return true;
+    }
+  } catch (err) {
+    console.warn('Native AI check encountered an error:', err);
   }
 
-  // 4. Summarizer API
-  if (aiObj && aiObj.summarizer) {
-    results.apis.summarizer.supported = true;
-    try {
-      if (typeof aiObj.summarizer.availability === 'function') {
-        const avail = await aiObj.summarizer.availability();
-        results.apis.summarizer.status = avail;
-        results.apis.summarizer.details = `availability(): ${avail}`;
-      } else if (typeof aiObj.summarizer.capabilities === 'function') {
-        const caps = await aiObj.summarizer.capabilities();
-        results.apis.summarizer.status = caps.available;
-        results.apis.summarizer.details = `capabilities(): ${caps.available}`;
-      }
-    } catch (err) {
-      results.apis.summarizer.details = `Error: ${err.message}`;
-    }
-  }
-
-  // 5. Language Detector & Translator
-  if (aiObj && aiObj.languageDetector) {
-    results.apis.languageDetector.supported = true;
-    try {
-      const caps = typeof aiObj.languageDetector.capabilities === 'function'
-        ? await aiObj.languageDetector.capabilities()
-        : null;
-      results.apis.languageDetector.status = caps?.available || 'present';
-    } catch (e) {
-      results.apis.languageDetector.details = e.message;
-    }
-  }
-
-  if (window.translation && typeof window.translation.canTranslate === 'function') {
-    results.apis.translator.supported = true;
-    try {
-      const can = await window.translation.canTranslate({ sourceLanguage: 'en', targetLanguage: 'es' });
-      results.apis.translator.status = can;
-    } catch (e) {
-      results.apis.translator.details = e.message;
-    }
-  }
-
-  // Determine native AI availability
-  const hasReadyAI = Object.values(results.apis).some(
-    api => api.supported && ['ready', 'readily', 'available', 'after-download'].includes(api.status)
-  );
-
-  state.detectedAvailable = hasReadyAI;
-  state.probeResults = results;
-
-  return results;
+  return false;
 }
 
 /**
- * Updates UI based on current state (detected, local in-browser, or simulated)
+ * Update Background Theme & Status
  */
-function applyVisualTheme() {
-  let isAvailable = state.detectedAvailable;
+function updateThemeState() {
+  const isAvailable = state.hasNativeAI || (state.localModelEnabled && state.localModelLoaded);
 
-  // Local In-Browser Model overrides if active
-  if (state.localAI.enabled) {
-    isAvailable = true;
-  } else if (state.simulationMode === 'green') {
-    isAvailable = true;
-  } else if (state.simulationMode === 'magenta') {
-    isAvailable = false;
-  }
-
-  // Manage body classes for Color switching
   elements.body.classList.remove('state-probing');
   if (isAvailable) {
     elements.body.classList.add('state-available');
     elements.body.classList.remove('state-unavailable');
 
-    // Content updates for GREEN state
-    if (state.localAI.enabled) {
-      elements.statusBadge.textContent = 'In-Browser AI Active';
-      elements.heroHeading.textContent = 'In-Browser AI Engine is Available';
-      elements.heroDescription.innerHTML =
-        `Running <strong>SmolLM2-135M</strong> on-device via <strong>${state.localAI.device.toUpperCase()}</strong>. No Chrome flags or backend server needed! The background is set to <strong>Green</strong>.`;
-      elements.colorStateValue.textContent = 'GREEN (#00E676 / Emerald)';
-      elements.workbenchTag.textContent = state.localAI.loaded ? 'SmolLM2-135M Ready' : 'Loading Model...';
-      elements.workbenchTag.className = 'pill-tag pill-info';
-      elements.detectionSourceValue.textContent = `In-Browser Model (${state.localAI.device.toUpperCase()})`;
+    if (state.hasNativeAI) {
+      elements.statusText.textContent = 'Chrome Native AI Active';
+      elements.localModelSection.style.display = 'none'; // Hide local model toggle when native is present
     } else {
-      elements.statusBadge.textContent = 'AI API Available';
-      elements.heroHeading.textContent = 'Browser AI API is Available';
-      elements.heroDescription.innerHTML =
-        'Built-in AI APIs (Gemini Nano / <code>window.ai</code>) were detected and ready for on-device execution. The background is now set to <strong>Green</strong>.';
-      elements.colorStateValue.textContent = 'GREEN (#00E676 / Emerald)';
-      elements.workbenchTag.textContent = 'Ready for Inference';
-      elements.workbenchTag.className = 'pill-tag pill-info';
-      elements.detectionSourceValue.textContent = state.simulationMode === 'green' ? 'Simulation (GREEN)' : 'Live Browser Probe';
+      elements.statusText.textContent = 'Local AI Ready (SmolLM2 GGUF)';
     }
-
-    elements.btnExecuteAI.disabled = false;
   } else {
     elements.body.classList.add('state-unavailable');
     elements.body.classList.remove('state-available');
 
-    // Content updates for MAGENTA state
-    elements.statusBadge.textContent = 'AI API Unavailable';
-    elements.heroHeading.textContent = 'Browser AI API Not Detected';
-    elements.heroDescription.innerHTML =
-      'No active Built-in AI APIs (<code>window.ai</code> / Gemini Nano) were detected. Check the <strong>In-Browser AI (SmolLM2)</strong> toggle above or follow the setup guide below. The background is set to <strong>Magenta</strong>.';
-    elements.colorStateValue.textContent = 'MAGENTA (#FF1493 / Neon)';
-    elements.workbenchTag.textContent = 'AI Unavailable (Simulation Ready)';
-    elements.workbenchTag.className = 'pill-tag';
-    elements.detectionSourceValue.textContent = state.simulationMode === 'magenta' ? 'Simulation (MAGENTA)' : 'Live Browser Probe';
+    elements.statusText.textContent = 'Native AI Unavailable';
+    elements.localModelSection.style.display = 'block'; // Show local model toggle when native is missing
   }
-
-  // Secure context info
-  elements.secureContextValue.textContent = state.isSecureContext
-    ? 'Yes (Secure localhost/HTTPS)'
-    : 'No (Insecure — window.ai is disabled)';
-
-  // Render capability list
-  renderCapabilityList();
-
-  // Render raw telemetry
-  elements.diagnosticsOutput.textContent = JSON.stringify({
-    localAIEngine: {
-      enabled: state.localAI.enabled,
-      loaded: state.localAI.loaded,
-      model: state.localAI.modelName,
-      device: state.localAI.device
-    },
-    browserAI: state.probeResults
-  }, null, 2);
 }
 
 /**
- * Render capability matrix cards
+ * Load the local SmolLM2 GGUF model via Wllama (llama.cpp WebAssembly)
  */
-function renderCapabilityList() {
-  const apis = state.probeResults.apis || {};
-
-  const items = [
-    {
-      name: 'ai.languageModel',
-      desc: 'Prompt API for Gemini Nano text generation',
-      data: apis.languageModel
-    },
-    {
-      name: 'ai.rewriter',
-      desc: 'Specialized API for rewriting, tone shifting, and polishing',
-      data: apis.rewriter
-    },
-    {
-      name: 'ai.writer',
-      desc: 'Generative writing assistant API',
-      data: apis.writer
-    },
-    {
-      name: 'ai.summarizer',
-      desc: 'On-device document and passage summarization',
-      data: apis.summarizer
-    },
-    {
-      name: 'ai.languageDetector',
-      desc: 'Zero-latency on-device language identification',
-      data: apis.languageDetector
-    },
-    {
-      name: 'translation / translator',
-      desc: 'Offline and browser-native neural translation',
-      data: apis.translator
-    }
-  ];
-
-  // If In-Browser AI is active or loading, prepend it as the top capability
-  let localItemHtml = '';
-  if (state.localAI.enabled) {
-    const statusText = state.localAI.loaded ? 'Ready / Active' : (state.localAI.loading ? 'Downloading...' : 'Enabled');
-    localItemHtml = `
-      <div class="capability-item" style="border: 1px solid var(--theme-border); background: rgba(0, 230, 118, 0.08);">
-        <div class="cap-left">
-          <span class="cap-name">SmolLM2-135M-Instruct (In-Browser WebGPU/WASM)</span>
-          <span class="cap-desc">Client-side neural network running locally without flags</span>
-        </div>
-        <span class="cap-badge badge-ready">${statusText}</span>
-      </div>
-    `;
-  }
-
-  elements.capabilityList.innerHTML = localItemHtml + items.map(item => {
-    let badgeClass = 'badge-none';
-    let label = 'Not Supported';
-
-    if (state.simulationMode === 'green') {
-      badgeClass = 'badge-ready';
-      label = 'Ready (Sim)';
-    } else if (state.simulationMode === 'magenta') {
-      badgeClass = 'badge-none';
-      label = 'Unavailable';
-    } else if (item.data && item.data.supported) {
-      const norm = normalizeStatus(item.data.status);
-      if (norm === 'ready') {
-        badgeClass = 'badge-ready';
-        label = item.data.status || 'Ready';
-      } else if (norm === 'download') {
-        badgeClass = 'badge-download';
-        label = 'Downloading';
-      } else {
-        badgeClass = 'badge-none';
-        label = item.data.status || 'No';
-      }
-    }
-
-    return `
-      <div class="capability-item">
-        <div class="cap-left">
-          <span class="cap-name">${item.name}</span>
-          <span class="cap-desc">${item.desc}</span>
-        </div>
-        <span class="cap-badge ${badgeClass}">${label}</span>
-      </div>
-    `;
-  }).join('');
-}
-
-/**
- * Activate the In-Browser AI Model (SmolLM2-135M)
- */
-async function activateLocalAIEngine() {
-  state.localAI.enabled = true;
-  elements.modelStatusBanner.style.display = 'flex';
-  
-  // Detect WebGPU support
-  const hasWebGPU = typeof navigator.gpu !== 'undefined';
-  state.localAI.device = hasWebGPU ? 'webgpu' : 'wasm';
-  elements.techDeviceBadge.textContent = hasWebGPU ? 'WebGPU (Hardware Accelerated)' : 'WASM (CPU Fallback)';
-
-  // Immediately apply Green theme
-  applyVisualTheme();
-  showToast(`In-Browser AI enabled via ${state.localAI.device.toUpperCase()}! Background switched to GREEN.`);
-
-  if (state.localAI.loaded && state.localAI.pipeline) {
-    elements.modelStatusText.textContent = 'Active & Ready';
-    elements.modelProgressBar.style.width = '100%';
-    elements.modelFileInfo.textContent = 'SmolLM2-135M loaded in memory. Ready for instant text rewriting!';
+async function loadLocalGGUFModel() {
+  if (state.localModelLoaded && state.wllamaInstance) {
+    state.localModelEnabled = true;
+    updateThemeState();
     return;
   }
 
-  // Load Transformers.js and Model
   try {
-    state.localAI.loading = true;
-    elements.modelStatusText.textContent = 'Loading Transformers.js engine...';
-    elements.modelProgressBar.style.width = '15%';
+    state.localModelLoading = true;
+    elements.progressWrap.style.display = 'flex';
+    elements.progressBarFill.style.width = '10%';
+    elements.progressInfo.textContent = 'Initializing WebAssembly engine...';
+    elements.modelBadge.textContent = 'Loading...';
 
-    // Dynamic import from CDN
-    const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3');
-    
-    // Configure environment
-    env.allowLocalModels = false;
+    // Import Wllama
+    const { Wllama } = await import('https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/index.js');
 
-    elements.modelStatusText.textContent = 'Downloading SmolLM2-135M weights (~80MB)...';
-    elements.modelProgressBar.style.width = '30%';
-
-    const progressCallback = (p) => {
-      if (p.status === 'progress') {
-        const pct = Math.round(p.progress || 0);
-        elements.modelProgressBar.style.width = `${Math.max(30, pct)}%`;
-        const fileName = p.file ? p.file.split('/').pop() : 'model';
-        elements.modelStatusText.textContent = `Downloading ${fileName} (${pct}%)`;
-        elements.modelFileInfo.textContent = `Caching weights in browser storage (${p.loaded ? (p.loaded / 1024 / 1024).toFixed(1) + 'MB' : pct + '%'})`;
-      } else if (p.status === 'done') {
-        elements.modelStatusText.textContent = 'Compiling WebGPU shaders...';
-        elements.modelProgressBar.style.width = '90%';
-      }
+    const configPaths = {
+      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/single-thread/wllama.wasm',
+      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/multi-thread/wllama.wasm'
     };
 
-    // Initialize text-generation pipeline with WebGPU and automatic WASM fallback
-    try {
-      state.localAI.pipeline = await pipeline('text-generation', state.localAI.modelName, {
-        device: state.localAI.device,
-        dtype: 'q4',
-        progress_callback: progressCallback
-      });
-    } catch (gpuErr) {
-      if (state.localAI.device === 'webgpu') {
-        console.warn('WebGPU initialization failed, falling back to WASM...', gpuErr);
-        state.localAI.device = 'wasm';
-        elements.techDeviceBadge.textContent = 'WASM (CPU Fallback)';
-        elements.modelStatusText.textContent = 'WebGPU unavailable, switching to WASM...';
-        state.localAI.pipeline = await pipeline('text-generation', state.localAI.modelName, {
-          device: 'wasm',
-          dtype: 'q4',
-          progress_callback: progressCallback
-        });
-      } else {
-        throw gpuErr;
-      }
-    }
+    state.wllamaInstance = new Wllama(configPaths);
 
-    state.localAI.loaded = true;
-    state.localAI.loading = false;
+    elements.progressInfo.textContent = 'Loading local smollm2-135m-instruct-q4_k_m.gguf (100MB)...';
+    elements.progressBarFill.style.width = '30%';
 
-    elements.modelProgressBar.style.width = '100%';
-    elements.modelStatusText.textContent = 'Active & Ready';
-    elements.modelFileInfo.textContent = 'SmolLM2-135M is cached locally in browser storage. Subsequent launches are instant!';
-    elements.workbenchTag.textContent = 'SmolLM2 Ready';
-    showToast('SmolLM2-135M model ready! Try rewriting in the workbench.');
-    applyVisualTheme();
-  } catch (err) {
-    console.error('Failed to load local in-browser model:', err);
-    state.localAI.loading = false;
-    elements.modelStatusText.textContent = 'Load error';
-    elements.modelFileInfo.textContent = `Error: ${err.message}. Check browser WebGPU permissions or network connection.`;
-    showToast(`Model load note: ${err.message}`);
-  }
-}
-
-/**
- * Deactivate In-Browser AI Engine
- */
-function deactivateLocalAIEngine() {
-  state.localAI.enabled = false;
-  elements.modelStatusBanner.style.display = 'none';
-  applyVisualTheme();
-  showToast('In-Browser AI disabled. Reverted to browser probe.');
-}
-
-/**
- * Setup Event Listeners
- */
-function initEventListeners() {
-  // In-Browser AI Checkbox Toggle
-  if (elements.chkLocalAI) {
-    elements.chkLocalAI.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        activateLocalAIEngine();
-      } else {
-        deactivateLocalAIEngine();
-      }
-    });
-  }
-
-  // Display Mode toggles (Ambient vs Solid)
-  elements.btnModeAmbient.addEventListener('click', () => {
-    state.displayMode = 'ambient';
-    elements.body.classList.remove('mode-solid');
-    elements.body.classList.add('mode-ambient');
-    elements.btnModeAmbient.classList.add('active');
-    elements.btnModeSolid.classList.remove('active');
-  });
-
-  elements.btnModeSolid.addEventListener('click', () => {
-    state.displayMode = 'solid';
-    elements.body.classList.add('mode-solid');
-    elements.body.classList.remove('mode-ambient');
-    elements.btnModeSolid.classList.add('active');
-    elements.btnModeAmbient.classList.remove('active');
-  });
-
-  // Simulation controls
-  elements.btnSimAuto.addEventListener('click', () => {
-    state.simulationMode = 'auto';
-    updateSimButtons(elements.btnSimAuto);
-    applyVisualTheme();
-    showToast('Switched to Live Auto-Detection');
-  });
-
-  elements.btnSimGreen.addEventListener('click', () => {
-    state.simulationMode = 'green';
-    updateSimButtons(elements.btnSimGreen);
-    applyVisualTheme();
-    showToast('Simulating Green State (AI Available)');
-  });
-
-  elements.btnSimMagenta.addEventListener('click', () => {
-    state.simulationMode = 'magenta';
-    updateSimButtons(elements.btnSimMagenta);
-    applyVisualTheme();
-    showToast('Simulating Magenta State (AI Unavailable)');
-  });
-
-  function updateSimButtons(activeBtn) {
-    [elements.btnSimAuto, elements.btnSimGreen, elements.btnSimMagenta].forEach(btn => {
-      btn.classList.remove('active');
-    });
-    activeBtn.classList.add('active');
-  }
-
-  // Re-scan button
-  elements.btnRefreshProbe.addEventListener('click', async () => {
-    elements.btnRefreshProbe.disabled = true;
-    elements.capabilityList.innerHTML = '<div class="capability-loading">Re-scanning APIs...</div>';
-    await probeBrowserAI();
-    applyVisualTheme();
-    elements.btnRefreshProbe.disabled = false;
-    showToast('Re-scan completed');
-  });
-
-  // Sample prompt button
-  elements.btnUseSample.addEventListener('click', () => {
-    const samples = [
-      'Rewrite politely for an executive: The deadline is impossible and we need 2 more weeks.',
-      'Polish this sentence to be concise and crisp: In view of the fact that we are currently experiencing latency, changes will be implemented.',
-      'Explain in one friendly sentence why browser-native AI is fast and private.'
-    ];
-    elements.promptInput.value = samples[Math.floor(Math.random() * samples.length)];
-    elements.promptInput.focus();
-  });
-
-  // Prompt / Rewrite Submission
-  elements.aiPromptForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const query = elements.promptInput.value.trim();
-    if (!query) return;
-
-    elements.btnExecuteAI.disabled = true;
-    elements.aiOutput.textContent = 'Generating on-device response...';
-
-    try {
-      // 1. Check if In-Browser Local Model is active
-      if (state.localAI.enabled && state.localAI.pipeline) {
-        elements.aiOutput.textContent = 'Running SmolLM2-135M on-device via WebGPU...';
-        
-        const messages = [
-          {
-            role: 'system',
-            content: 'You are an expert writing assistant. Rewrite the user draft to be polite, clear, concise, and professional. Return only the rewritten text.'
-          },
-          {
-            role: 'user',
-            content: query
-          }
-        ];
-
-        const output = await state.localAI.pipeline(messages, {
-          max_new_tokens: 100,
-          temperature: 0.3,
-          do_sample: false
-        });
-
-        const generated = output[0]?.generated_text;
-        const answer = Array.isArray(generated) ? generated.at(-1)?.content : generated;
-        elements.aiOutput.textContent = `[SmolLM2-135M In-Browser Result]:\n\n${answer || 'No response returned.'}`;
-        return;
-      }
-
-      const aiObj = window.ai || self.ai;
-
-      // 2. Try Real Native Chrome Rewriter API
-      if (aiObj && aiObj.rewriter && typeof aiObj.rewriter.create === 'function') {
-        const rewriter = await aiObj.rewriter.create({ tone: 'more-formal', length: 'as-is' });
-        const result = await rewriter.rewrite(query);
-        elements.aiOutput.textContent = `[Chrome Rewriter API Result]:\n\n${result}`;
-        return;
-      }
-
-      // 3. Try Real Native Chrome LanguageModel (Prompt API)
-      if (aiObj && aiObj.languageModel && typeof aiObj.languageModel.create === 'function') {
-        const session = await aiObj.languageModel.create();
-        elements.aiOutput.textContent = '';
-        if (typeof session.promptStreaming === 'function') {
-          const stream = session.promptStreaming(query);
-          for await (const chunk of stream) {
-            elements.aiOutput.textContent = chunk;
-          }
-        } else {
-          const result = await session.prompt(query);
-          elements.aiOutput.textContent = result;
+    // Load from local static server endpoint
+    await state.wllamaInstance.loadModelFromUrl('/models/smollm2-135m-instruct-q4_k_m.gguf', {
+      progressCallback: ({ loaded, total }) => {
+        if (total > 0) {
+          const pct = Math.round((loaded / total) * 100);
+          elements.progressBarFill.style.width = `${Math.max(30, pct)}%`;
+          elements.progressInfo.textContent = `Streaming local model weights: ${pct}% (${(loaded / 1024 / 1024).toFixed(1)}MB / ${(total / 1024 / 1024).toFixed(1)}MB)`;
         }
-        return;
       }
-
-      // 4. Fallback Simulated Demonstration Stream
-      await runSimulatedInference(query);
-    } catch (err) {
-      elements.aiOutput.textContent = `Execution Note: ${err.message}\nRunning fallback rewrite demonstration:\n\n`;
-      await runSimulatedInference(query);
-    } finally {
-      elements.btnExecuteAI.disabled = false;
-    }
-  });
-
-  // Copy Chrome Flag buttons
-  document.querySelectorAll('.copy-flag-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const flag = btn.getAttribute('data-flag');
-      navigator.clipboard.writeText(flag).then(() => {
-        showToast(`Copied flag: ${flag}`);
-      });
     });
-  });
-}
 
-/**
- * Simulates streaming token output for demo purposes
- */
-async function runSimulatedInference(query) {
-  const simulatedResponses = [
-    `"Here is a refined, professional version:\n\n'I wanted to touch base regarding the proposed timeline. With our current scope, a two-week extension would ensure the deliverable meets our highest quality standards. Thank you for your flexibility.'"`,
-    `"Polished and concise rewrite:\n\n'Due to current system latency, performance optimizations are now underway.'"`,
-    `"Browser-native AI processes queries directly on your device via Gemini Nano, ensuring your data never leaves your hardware while delivering zero-latency results."`
-  ];
+    state.localModelLoaded = true;
+    state.localModelLoading = false;
+    state.localModelEnabled = true;
 
-  const responseText = simulatedResponses[Math.floor(Math.random() * simulatedResponses.length)];
-  elements.aiOutput.textContent = '[Simulated Output]: ';
+    elements.progressBarFill.style.width = '100%';
+    elements.progressInfo.textContent = 'Model loaded in memory! Ready for zero-server rewrites.';
+    elements.modelBadge.textContent = 'Active (100MB)';
+    elements.modelBadge.style.color = '#00e676';
 
-  for (let i = 0; i < responseText.length; i++) {
-    elements.aiOutput.textContent += responseText[i];
-    await new Promise(r => setTimeout(r, 18));
+    updateThemeState();
+    showToast('Local GGUF model loaded! Background switched to Green.');
+  } catch (err) {
+    console.error('Failed to load local GGUF model:', err);
+    state.localModelLoading = false;
+    elements.progressInfo.textContent = `Load note: ${err.message}`;
+    elements.modelBadge.textContent = 'Error';
+    showToast(`Error loading model: ${err.message}`);
   }
 }
 
 /**
- * Application Bootstrap
+ * Execute Text Rewriting
  */
-async function initApp() {
-  initEventListeners();
-  await probeBrowserAI();
-  applyVisualTheme();
+async function handleRewrite() {
+  const text = elements.inputText.value.trim();
+  if (!text) {
+    elements.inputText.focus();
+    showToast('Please enter text to rewrite');
+    return;
+  }
+
+  elements.btnRewrite.disabled = true;
+  elements.outputBox.textContent = 'Thinking and polishing your text...';
+
+  try {
+    // 1. Native AI Path
+    if (state.hasNativeAI) {
+      const aiObj = window.ai || self.ai;
+      if (aiObj.rewriter) {
+        const rewriter = await aiObj.rewriter.create({ tone: 'more-formal', length: 'as-is' });
+        const result = await rewriter.rewrite(text);
+        elements.outputBox.textContent = result;
+        showToast('Polished using Chrome Native Rewriter AI');
+        return;
+      } else if (aiObj.languageModel) {
+        const session = await aiObj.languageModel.create();
+        const result = await session.prompt(`Rewrite politely and professionally: ${text}`);
+        elements.outputBox.textContent = result;
+        showToast('Polished using Chrome Native Language Model');
+        return;
+      }
+    }
+
+    // 2. Local SmolLM2 GGUF Path
+    if (state.localModelEnabled && state.localModelLoaded && state.wllamaInstance) {
+      const prompt = `<|im_start|>system\nYou are an expert writing assistant. Rewrite the following text to be professional, polite, concise, and constructive. Return only the rewritten text without explanations.<|im_end|>\n<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n`;
+
+      elements.outputBox.textContent = '';
+      const response = await state.wllamaInstance.createCompletion(prompt, {
+        nPredict: 120,
+        sampling: {
+          temp: 0.3,
+          top_p: 0.9
+        },
+        onNewToken: (token, piece, currentText) => {
+          elements.outputBox.textContent = currentText.trimStart();
+        }
+      });
+
+      elements.outputBox.textContent = response.trim();
+      showToast('Polished using Local SmolLM2-135M GGUF');
+      return;
+    }
+
+    // 3. Fallback when local model is not yet toggled on
+    elements.outputBox.textContent =
+      `Please enable the "Load Local AI Model (SmolLM2 GGUF)" toggle above to run the on-device AI.\n\nDemonstration rewrite:\n"I wanted to follow up regarding the budget report. Could you please share the current version when you have a moment? Thank you."`;
+    showToast('Enable the Local Model toggle above to run AI');
+  } catch (err) {
+    console.error('Rewrite error:', err);
+    elements.outputBox.textContent = `Error during rewriting: ${err.message}`;
+  } finally {
+    elements.btnRewrite.disabled = false;
+  }
 }
 
-// Kickoff when DOM is loaded
+/**
+ * Copy Output Text
+ */
+async function handleCopy() {
+  const content = elements.outputBox.textContent.trim();
+  if (!content || content.includes('Your polished, professional rewrite will appear here')) {
+    showToast('Nothing to copy yet');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(content);
+    elements.copyBtnText.textContent = 'Copied!';
+    elements.btnCopy.style.background = 'var(--theme-primary)';
+    elements.btnCopy.style.color = '#030712';
+
+    showToast('Copied to clipboard!');
+
+    setTimeout(() => {
+      elements.copyBtnText.textContent = 'Copy';
+      elements.btnCopy.style.background = '';
+      elements.btnCopy.style.color = '';
+    }, 2000);
+  } catch (e) {
+    showToast('Failed to copy to clipboard');
+  }
+}
+
+/**
+ * Sample Drafts
+ */
+function handleSample() {
+  const samples = [
+    'send me the budget report right now or else',
+    'The project timeline makes no sense and whoever planned this was clueless. We cannot do it.',
+    'I dont know what you want me to do with this slide deck, it looks completely terrible.',
+    'Hey guys this API is broken and slow fix it please asap'
+  ];
+  elements.inputText.value = samples[Math.floor(Math.random() * samples.length)];
+  elements.inputText.focus();
+}
+
+/**
+ * Event Listeners
+ */
+function initEvents() {
+  // Local model toggle
+  elements.chkLocalModel.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      loadLocalGGUFModel();
+    } else {
+      state.localModelEnabled = false;
+      updateThemeState();
+      showToast('Local model disabled. Background reverted to Magenta.');
+    }
+  });
+
+  // Buttons
+  elements.btnRewrite.addEventListener('click', handleRewrite);
+  elements.btnCopy.addEventListener('click', handleCopy);
+  elements.btnSample.addEventListener('click', handleSample);
+
+  // Command/Ctrl + Enter to trigger rewrite
+  elements.inputText.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleRewrite();
+    }
+  });
+}
+
+/**
+ * Initialization
+ */
+async function init() {
+  initEvents();
+  state.hasNativeAI = await probeNativeAI();
+  updateThemeState();
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initApp);
+  document.addEventListener('DOMContentLoaded', init);
 } else {
-  initApp();
+  init();
 }

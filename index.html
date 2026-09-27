@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RewriteNicely — Browser AI API Detector</title>
-  <meta name="description" content="Detects if your browser supports Built-in AI APIs (Gemini Nano / window.ai) and changes background color to green or magenta dynamically.">
+  <title>RewriteNicely</title>
+  <meta name="description" content="Minimalist, browser-native text rewriter powered by on-device AI.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="state-probing mode-ambient">
+<body class="state-probing">
   <div class="ambient-glow" aria-hidden="true"></div>
 
-  <div class="app-wrapper">
-    <!-- Navigation / Top Header -->
+  <div class="app-container">
+    <!-- Header -->
     <header class="app-header">
       <div class="brand">
         <div class="brand-icon">
@@ -22,243 +22,73 @@
             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
           </svg>
         </div>
-        <div class="brand-text">
-          <span class="brand-title">RewriteNicely</span>
-          <span class="brand-tag">AI API Inspector</span>
-        </div>
-      </div>
-
-      <!-- Controls Toolbar -->
-      <div class="header-controls">
-        <div class="control-group">
-          <label class="control-label" for="chkLocalAI">In-Browser AI (No Flags)</label>
-          <label class="switch-control" for="chkLocalAI" title="Activate in-browser SmolLM2-135M via WebGPU/WASM">
-            <input type="checkbox" id="chkLocalAI">
-            <span class="switch-track">
-              <span class="switch-thumb"></span>
-            </span>
-            <span class="switch-title">SmolLM2-135M</span>
-          </label>
-        </div>
-
-        <div class="control-group">
-          <label class="control-label">View Mode</label>
-          <div class="segmented-control" role="group" aria-label="Background display style">
-            <button id="btnModeAmbient" class="segmented-btn active" type="button">Ambient Glow</button>
-            <button id="btnModeSolid" class="segmented-btn" type="button">Solid Color</button>
-          </div>
-        </div>
-
-        <div class="control-group">
-          <label class="control-label">State Simulation</label>
-          <div class="segmented-control" role="group" aria-label="Simulate AI states">
-            <button id="btnSimAuto" class="segmented-btn active" title="Live Auto-Detection">Auto</button>
-            <button id="btnSimGreen" class="segmented-btn" title="Simulate Green (AI Available)">Green (Available)</button>
-            <button id="btnSimMagenta" class="segmented-btn" title="Simulate Magenta (AI Unavailable)">Magenta (Unavailable)</button>
-          </div>
+        <div class="brand-info">
+          <h1 class="brand-title">RewriteNicely</h1>
+          <span class="status-indicator" id="statusIndicator">
+            <span class="status-dot"></span>
+            <span id="statusText">Checking browser AI...</span>
+          </span>
         </div>
       </div>
     </header>
 
-    <main class="main-content">
-      <!-- In-Browser Model Status Banner -->
-      <div class="model-status-banner" id="modelStatusBanner" style="display: none;">
-        <div class="model-banner-header">
-          <div class="model-banner-title">
-            <span class="pulse-indicator"></span>
-            <strong>In-Browser Local AI (SmolLM2-135M)</strong>
-            <span class="badge-tech" id="techDeviceBadge">Checking WebGPU...</span>
+    <!-- Main Workspace -->
+    <main class="workspace-card">
+      <!-- Local Model Toggle (Shown only if native AI is not supported) -->
+      <section class="local-model-section" id="localModelSection" style="display: none;">
+        <div class="toggle-row">
+          <label class="switch-control" for="chkLocalModel">
+            <input type="checkbox" id="chkLocalModel">
+            <span class="switch-track">
+              <span class="switch-thumb"></span>
+            </span>
+            <span class="switch-label">Load Local AI Model (SmolLM2-135M GGUF)</span>
+          </label>
+          <span class="model-badge" id="modelBadge">Local File</span>
+        </div>
+
+        <div class="progress-wrap" id="progressWrap" style="display: none;">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
           </div>
-          <span class="model-status-text" id="modelStatusText">Initializing model...</span>
+          <div class="progress-info" id="progressInfo">Loading local model into memory...</div>
         </div>
-        <div class="progress-bar-container" id="modelProgressContainer">
-          <div class="progress-bar" id="modelProgressBar" style="width: 0%;"></div>
+      </section>
+
+      <!-- Input Section -->
+      <div class="input-section">
+        <label for="inputText" class="section-label">Your Draft</label>
+        <textarea id="inputText" class="text-area" rows="4" placeholder="Type or paste text you want to rewrite nicely...">send me the budget report right now or else</textarea>
+        
+        <div class="input-actions">
+          <button id="btnSample" class="btn-secondary" type="button">Insert Sample</button>
+          <button id="btnRewrite" class="btn-primary" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Rewrite Nicely
+          </button>
         </div>
-        <div class="model-file-info" id="modelFileInfo">Connecting to model repository (~80MB, cached in browser IndexedDB)...</div>
       </div>
 
-      <!-- Hero Status Card -->
-      <section class="hero-status-card" id="heroCard">
-        <div class="status-beacon-container">
-          <div class="status-beacon" id="statusBeacon">
-            <div class="beacon-pulse"></div>
-            <div class="beacon-dot"></div>
-          </div>
-        </div>
-
-        <div class="hero-text-content">
-          <div class="status-badge" id="statusBadge">Probing Browser AI...</div>
-          <h1 class="hero-heading" id="heroHeading">Detecting Browser AI Capabilities</h1>
-          <p class="hero-description" id="heroDescription">
-            Scanning for Chrome Built-in AI APIs (Gemini Nano, <code>window.ai</code>, <code>ai.languageModel</code>, and <code>ai.rewriter</code>)...
-          </p>
-        </div>
-
-        <div class="hero-meta-strip">
-          <div class="meta-item">
-            <span class="meta-label">Background State</span>
-            <span class="meta-value" id="colorStateValue">Probing...</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">Secure Context</span>
-            <span class="meta-value" id="secureContextValue">Checking...</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">Detection Method</span>
-            <span class="meta-value" id="detectionSourceValue">Live Probe</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Grid: Capabilities & Diagnostics -->
-      <section class="section-grid">
-        <!-- Capabilities Matrix Card -->
-        <div class="card capabilities-card">
-          <div class="card-header">
-            <h2 class="card-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-inline">
-                <rect width="18" height="18" x="3" y="3" rx="2"/>
-                <path d="m9 12 2 2 4-4"/>
-              </svg>
-              Built-in AI API Matrix
-            </h2>
-            <button id="btnRefreshProbe" class="refresh-btn" type="button" title="Re-scan browser APIs">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
-                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
-                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                <path d="M16 21h5v-5"/>
-              </svg>
-              Re-scan
-            </button>
-          </div>
-
-          <div class="capability-list" id="capabilityList">
-            <!-- Populated by JavaScript -->
-            <div class="capability-loading">Probing API endpoints...</div>
-          </div>
-        </div>
-
-        <!-- Interactive Workbench Card -->
-        <div class="card workbench-card">
-          <div class="card-header">
-            <h2 class="card-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-inline">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
-              </svg>
-              Rewrite & Prompt Workbench
-            </h2>
-            <span class="pill-tag" id="workbenchTag">Waiting for AI</span>
-          </div>
-
-          <p class="card-subtext">
-            Test on-device AI generation and rewriting directly inside this browser window.
-          </p>
-
-          <form id="aiPromptForm" class="ai-form">
-            <div class="form-group">
-              <label for="promptInput" class="form-label">Input Text to Polish or Prompt</label>
-              <textarea id="promptInput" rows="3" class="form-textarea" placeholder="e.g. rewrite this email politely: send me the budget report right now or else">Could you please rewrite this draft to sound executive, concise, and constructive: "The code is mess and everything is slow fix it asap"</textarea>
-            </div>
-
-            <div class="form-actions">
-              <button type="submit" id="btnExecuteAI" class="btn-primary">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-inline">
-                  <polygon points="5 3 19 12 5 21 5 3"/>
-                </svg>
-                Run On-Device AI
-              </button>
-              <button type="button" id="btnUseSample" class="btn-secondary">Insert Sample</button>
-            </div>
-          </form>
-
-          <div class="output-container" id="outputContainer">
-            <div class="output-label">AI Output Stream:</div>
-            <div class="output-box" id="aiOutput">Waiting for execution...</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Setup & Chrome Gemini Nano Activation Guide -->
-      <section class="card guide-card" id="guideSection">
-        <div class="card-header">
-          <h2 class="card-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-inline">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
+      <!-- Output Section -->
+      <div class="output-section">
+        <div class="output-header">
+          <label class="section-label">Polished Output</label>
+          <button id="btnCopy" class="btn-copy" type="button" title="Copy to clipboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-icon">
+              <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
             </svg>
-            How to Enable Built-in AI in Google Chrome
-          </h2>
-          <span class="pill-tag pill-info">Setup Guide</span>
+            <span id="copyBtnText">Copy</span>
+          </button>
         </div>
 
-        <p class="guide-intro">
-          If your background is <strong>Magenta</strong>, Google Chrome's on-device Gemini Nano model is either not enabled or needs to be downloaded. Follow these steps to turn it <strong>Green</strong>:
-        </p>
-
-        <div class="guide-steps">
-          <div class="guide-step">
-            <div class="step-num">1</div>
-            <div class="step-content">
-              <h3>Use Chrome 128+ or Chrome Dev / Canary</h3>
-              <p>Built-in AI APIs require modern Chrome with on-device AI capabilities enabled.</p>
-            </div>
-          </div>
-
-          <div class="guide-step">
-            <div class="step-num">2</div>
-            <div class="step-content">
-              <h3>Enable Gemini Nano Chrome Flags</h3>
-              <p>Paste each URL below into your Chrome address bar, set to <strong>Enabled</strong>, and relaunch Chrome:</p>
-              <div class="flag-items">
-                <div class="flag-chip">
-                  <code>chrome://flags/#prompt-api-for-gemini-nano</code>
-                  <button type="button" class="copy-flag-btn" data-flag="chrome://flags/#prompt-api-for-gemini-nano">Copy</button>
-                </div>
-                <div class="flag-chip">
-                  <code>chrome://flags/#optimization-guide-on-device-model</code>
-                  <button type="button" class="copy-flag-btn" data-flag="chrome://flags/#optimization-guide-on-device-model">Copy</button>
-                </div>
-                <div class="flag-chip">
-                  <code>chrome://flags/#rewriter-api-for-gemini-nano</code>
-                  <button type="button" class="copy-flag-btn" data-flag="chrome://flags/#rewriter-api-for-gemini-nano">Copy</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="guide-step">
-            <div class="step-num">3</div>
-            <div class="step-content">
-              <h3>Verify Optimization Guide Component</h3>
-              <p>
-                Visit <code>chrome://components</code>, find <strong>Optimization Guide On Device Model</strong>, and click <strong>Check for update</strong> to download the Gemini Nano weights.
-              </p>
-            </div>
-          </div>
+        <div class="output-box" id="outputBox">
+          <p class="placeholder-text">Your polished, professional rewrite will appear here.</p>
         </div>
-      </section>
-
-      <!-- Technical Telemetry & Diagnostics -->
-      <section class="card diagnostics-card">
-        <details class="diagnostics-details">
-          <summary class="diagnostics-summary">
-            <span class="summary-title">Technical Telemetry & Raw Inspection</span>
-            <span class="summary-hint">Click to expand raw JSON probe data</span>
-          </summary>
-          <pre class="diagnostics-pre"><code id="diagnosticsOutput">Awaiting probe...</code></pre>
-        </details>
-      </section>
+      </div>
     </main>
-
-    <footer class="app-footer">
-      <p>RewriteNicely &bull; Built with standard Web APIs &bull; Secure Context Enforced</p>
-    </footer>
   </div>
 
   <div id="toast" class="toast" role="alert" aria-live="assertive"></div>

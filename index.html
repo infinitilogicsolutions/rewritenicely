@@ -31,6 +31,17 @@
       <!-- Controls Toolbar -->
       <div class="header-controls">
         <div class="control-group">
+          <label class="control-label" for="chkLocalAI">In-Browser AI (No Flags)</label>
+          <label class="switch-control" for="chkLocalAI" title="Activate in-browser SmolLM2-135M via WebGPU/WASM">
+            <input type="checkbox" id="chkLocalAI">
+            <span class="switch-track">
+              <span class="switch-thumb"></span>
+            </span>
+            <span class="switch-title">SmolLM2-135M</span>
+          </label>
+        </div>
+
+        <div class="control-group">
           <label class="control-label">View Mode</label>
           <div class="segmented-control" role="group" aria-label="Background display style">
             <button id="btnModeAmbient" class="segmented-btn active" type="button">Ambient Glow</button>
@@ -50,6 +61,22 @@
     </header>
 
     <main class="main-content">
+      <!-- In-Browser Model Status Banner -->
+      <div class="model-status-banner" id="modelStatusBanner" style="display: none;">
+        <div class="model-banner-header">
+          <div class="model-banner-title">
+            <span class="pulse-indicator"></span>
+            <strong>In-Browser Local AI (SmolLM2-135M)</strong>
+            <span class="badge-tech" id="techDeviceBadge">Checking WebGPU...</span>
+          </div>
+          <span class="model-status-text" id="modelStatusText">Initializing model...</span>
+        </div>
+        <div class="progress-bar-container" id="modelProgressContainer">
+          <div class="progress-bar" id="modelProgressBar" style="width: 0%;"></div>
+        </div>
+        <div class="model-file-info" id="modelFileInfo">Connecting to model repository (~80MB, cached in browser IndexedDB)...</div>
+      </div>
+
       <!-- Hero Status Card -->
       <section class="hero-status-card" id="heroCard">
         <div class="status-beacon-container">

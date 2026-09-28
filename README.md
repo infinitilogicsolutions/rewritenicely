@@ -5,6 +5,6 @@ Private, on-device text rewriting with Chrome built-in AI or one of four browser
 - Llama 3.2 1B Instruct (Q4_K_M, about 808 MB)
 - Gemma 3 1B IT (Q4_K_M, about 806 MB)
 - Qwen3 0.6B (Q4_0, about 429 MB)
-- SmolLM2 135M (bundled, about 101 MB)
+- SmolLM2 135M (downloads from Hugging Face, about 101 MB)
 
 Run `npm start`, then open `http://127.0.0.1:3000/`. Only one model is loaded at a time. A matching file in `models/` is preferred; otherwise supported models download into browser memory when selected.

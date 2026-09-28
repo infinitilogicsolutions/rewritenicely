@@ -60,8 +60,8 @@
             <article class="model-option">
               <div class="model-topline"><span class="model-category">LIGHTEST</span><span class="model-badge" id="smolBadge">101 MB</span></div>
               <h3>SmolLM2 135M</h3>
-              <p>Bundled locally for the fastest start and smallest footprint.</p>
-              <label class="switch-control" for="chkLocalModel"><input type="checkbox" id="chkLocalModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Load bundled model</span></label>
+              <p>Smallest model; downloads from Hugging Face, then runs in your browser.</p>
+              <label class="switch-control" for="chkLocalModel"><input type="checkbox" id="chkLocalModel"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-label">Download and use</span></label>
             </article>
           </div>
           <p class="model-note">Only one model stays loaded at a time. Downloads remain in browser memory for this session.</p>
@@ -75,25 +75,6 @@
             <p id="selectedModelMeta">Model details</p>
           </div>
           <div class="summary-controls">
-            <div id="gemmaLanguageGroup" class="language-control" hidden>
-              <label for="gemmaLanguage">Output language</label>
-              <select id="gemmaLanguage">
-                <option value="same">Same as source</option>
-                <option value="English">English</option>
-                <option value="Spanish">Spanish</option>
-                <option value="French">French</option>
-                <option value="German">German</option>
-                <option value="Italian">Italian</option>
-                <option value="Portuguese">Portuguese</option>
-                <option value="Dutch">Dutch</option>
-                <option value="Polish">Polish</option>
-                <option value="Hindi">Hindi</option>
-                <option value="Arabic">Arabic</option>
-                <option value="Chinese">Chinese</option>
-                <option value="Japanese">Japanese</option>
-                <option value="Korean">Korean</option>
-              </select>
-            </div>
             <button id="btnChangeModel" class="text-button" type="button">Change model</button>
           </div>
         </div>
@@ -104,12 +85,46 @@
         </div>
       </section>
 
+      <section class="rewrite-rules" aria-labelledby="rulesTitle">
+        <div>
+          <p class="section-kicker">REWRITE RULES</p>
+          <h2 id="rulesTitle">Choose how it should read</h2>
+        </div>
+        <div class="rule-toggles">
+          <label class="rule-toggle" for="ruleBoss"><input type="checkbox" id="ruleBoss"><span>Write to boss</span></label>
+          <label class="rule-toggle" for="ruleGrammar"><input type="checkbox" id="ruleGrammar"><span>Correct grammar</span></label>
+          <label class="rule-toggle" for="ruleFunny"><input type="checkbox" id="ruleFunny"><span>Make it funny</span></label>
+          <div id="gemmaLanguageGroup" class="language-control rule-language" hidden>
+            <label for="gemmaLanguage">Language</label>
+            <select id="gemmaLanguage">
+              <option value="same">Same as source</option>
+              <option value="English">English</option>
+              <option value="Spanish">Spanish</option>
+              <option value="French">French</option>
+              <option value="German">German</option>
+              <option value="Italian">Italian</option>
+              <option value="Portuguese">Portuguese</option>
+              <option value="Dutch">Dutch</option>
+              <option value="Polish">Polish</option>
+              <option value="Hindi">Hindi</option>
+              <option value="Telugu">Telugu</option>
+              <option value="Tamil">Tamil</option>
+              <option value="Nepali">Nepali</option>
+              <option value="Arabic">Arabic</option>
+              <option value="Chinese">Chinese</option>
+              <option value="Japanese">Japanese</option>
+              <option value="Korean">Korean</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
       <div class="editor-grid">
         <section class="editor-panel input-section" aria-labelledby="draftLabel">
           <div class="panel-heading"><div><span class="panel-number">01</span><h2 id="draftLabel">Your draft</h2></div><span>Up to 12,000 characters</span></div>
           <label for="inputText" class="sr-only">Text to rewrite</label>
           <textarea id="inputText" class="text-area" maxlength="12000" aria-describedby="engineHelp" placeholder="Type or paste the message you want to improve..."></textarea>
-          <div class="input-actions"><button id="btnSample" class="btn-secondary" type="button">Insert sample</button><button id="btnRewrite" class="btn-primary" type="button" disabled>Rewrite nicely <span aria-hidden="true">&rarr;</span></button></div>
+          <div class="input-actions"><button id="btnRewrite" class="btn-primary" type="button" disabled>Rewrite <span aria-hidden="true">&rarr;</span></button></div>
         </section>
 
         <section class="editor-panel output-section" aria-labelledby="outputLabel">

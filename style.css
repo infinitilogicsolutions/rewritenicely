@@ -36,6 +36,15 @@ main { width: min(1180px, calc(100% - 64px)); margin: 0 auto; flex: 1; }
 h1 { margin: 22px 0 16px; font: 400 clamp(42px, 5vw, 64px)/1.13 Georgia, "Times New Roman", serif; letter-spacing: -2.7px; }
 h1 em { color: #557741; font-weight: 400; }
 .subtitle { max-width: 660px; margin: 0 auto; color: #778075; font-size: 14px; }
+.rewrite-rules { margin: -8px auto 24px; padding: 17px 20px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); }
+.rewrite-rules h2 { margin: 0; font: 400 20px/1.2 Georgia, serif; letter-spacing: -.3px; }
+.rule-toggles { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.rule-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; }
+.rule-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.rule-toggle span { padding: 8px 11px; border: 1px solid #cbd4c5; border-radius: 20px; background: var(--paper); color: var(--muted); font-size: 11px; font-weight: 600; transition: background .2s ease, border-color .2s ease, color .2s ease; }
+.rule-toggle input:checked + span { border-color: var(--green); background: var(--green); color: #fff; }
+.rule-toggle input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 3px; }
+.rule-toggle input:disabled + span { cursor: not-allowed; opacity: .55; }
 
 .engine-panel { margin-bottom: 24px; padding: 22px; border: 1px solid var(--line); border-radius: 8px; background: #fafbf6; }
 .engine-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
@@ -77,6 +86,8 @@ h1 em { color: #557741; font-weight: 400; }
 .language-control { display: flex; flex-direction: column; gap: 4px; }
 .language-control label { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
 .language-control select { min-width: 165px; padding: 8px 30px 8px 10px; border: 1px solid #cbd4c5; border-radius: 5px; background: var(--white); color: var(--ink); font-size: 11px; }
+.rule-language { margin-left: 4px; flex-direction: row; align-items: center; gap: 7px; }
+.rule-language select { min-width: 145px; border-radius: 20px; background: var(--paper); }
 .text-button { padding: 8px 0; border: 0; background: transparent; color: var(--green); cursor: pointer; font-size: 11px; }
 .progress-wrap { margin-top: 16px; }
 .progress-bar-bg { height: 4px; overflow: hidden; border-radius: 4px; background: #e4e8df; }
@@ -124,6 +135,7 @@ footer { width: 100%; max-width: 1440px; margin: auto; padding: 22px 5.6%; displ
   h1 { font-size: 44px; letter-spacing: -2px; }
   .subtitle { max-width: 310px; font-size: 12px; line-height: 1.8; }
   .engine-heading { flex-direction: column; gap: 6px; }
+  .rewrite-rules { align-items: flex-start; flex-direction: column; gap: 12px; }
   .status-indicator { padding-top: 0; }
   .editor-grid { grid-template-columns: 1fr; }
   .editor-panel { min-height: 350px; }

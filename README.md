@@ -7,4 +7,4 @@ Private, on-device text rewriting with Chrome built-in AI or one of four browser
 - Qwen3 0.6B (Q4_0, about 429 MB)
 - SmolLM2 135M (downloads from Hugging Face, about 101 MB)
 
-Run `npm start`, then open `http://127.0.0.1:3000/`. Only one model is loaded at a time. A matching file in `models/` is preferred; otherwise supported models download into browser memory when selected.
+Run `npm start`, then open `http://127.0.0.1:3000/`. Only one model is loaded at a time. Models download from Hugging Face into browser storage when selected, then run privately in the browser.

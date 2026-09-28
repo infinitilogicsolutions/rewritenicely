@@ -5,19 +5,16 @@ const MODELS = {
   llama: {
     name: 'Llama 3.2 1B Instruct', size: '808 MB', toggleId: 'chkLlamaModel', badgeId: 'llamaBadge',
     summary: 'Balanced general-purpose rewriting - runs privately in this browser tab',
-    localUrl: 'models/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
     remoteUrl: 'https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
   },
   gemma: {
     name: 'Gemma 3 1B IT', size: '806 MB', toggleId: 'chkGemmaModel', badgeId: 'gemmaBadge',
     summary: 'Multilingual rewriting with selectable output language - runs in this browser tab',
-    localUrl: 'models/gemma-3-1b-it-Q4_K_M.gguf',
     remoteUrl: 'https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf',
   },
   qwen: {
     name: 'Qwen3 0.6B', size: '429 MB', toggleId: 'chkQwenModel', badgeId: 'qwenBadge',
     summary: 'Compact everyday rewriting - runs privately in this browser tab',
-    localUrl: 'models/Qwen3-0.6B-Q4_0.gguf',
     remoteUrl: 'https://huggingface.co/ggml-org/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_0.gguf',
   },
   smol: {
@@ -144,15 +141,6 @@ async function probeNativeAI() {
   return null;
 }
 
-async function localModelExists(url) {
-  try {
-    const response = await fetch(url, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' });
-    const exists = response.ok;
-    await response.body?.cancel();
-    return exists;
-  } catch { return false; }
-}
-
 function resetBadges(exceptKey) {
   for (const [key, control] of Object.entries(controls)) {
     if (key !== exceptKey) control.badge.textContent = MODELS[key].size;
@@ -184,14 +172,12 @@ async function loadModel(key) {
       'multi-thread/wllama.wasm': `${CDN_BASE}/multi-thread/wllama.wasm`,
     });
 
-    const localUrl = model.localUrl ? new URL(model.localUrl, window.location.href).href : null;
-    const hasLocalCopy = localUrl ? await localModelExists(localUrl) : false;
-    const url = hasLocalCopy ? localUrl : model.remoteUrl;
+    const url = model.remoteUrl;
     if (!url) {
       throw new Error(`No download source available for ${model.name}.`);
     }
-    const source = hasLocalCopy ? 'Local model' : `${model.name} download`;
-    setProgress(5, hasLocalCopy ? `Loading ${model.name} from disk...` : `Downloading ${model.name} (${model.size})...`);
+    const source = `${model.name} download`;
+    setProgress(5, `Downloading ${model.name} from Hugging Face (${model.size})...`);
 
     await engine.loadModelFromUrl(url, {
       progressCallback: ({ loaded, total }) => {
